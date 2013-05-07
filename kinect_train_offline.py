@@ -57,7 +57,7 @@ class KinectOfflineConfig(object):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build body part classification trees online')
     parser.add_argument('-p', '--train_poses', type=str, required=True)
-    parser.add_argument('-n', '--number_of_samples', type=str, required=True)
+    parser.add_argument('-n', '--number_of_samples', type=int, required=True)
     parser.add_argument('-t', '--number_of_trees', type=int, required=True)
     args = parser.parse_args()
 
