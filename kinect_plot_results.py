@@ -30,9 +30,9 @@ def plot_line(x_axis, data, line_type, color, label, plot_standard_deviation=Tru
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Plot forest performance')
-    parser.add_argument('--list_of_samples_to_plot', type=str, required=True)  
-    parser.add_argument('--saffari_folders', type=str, required=True)   
-    parser.add_argument('--online_folders', type=str, required=True)  
+    parser.add_argument('--list_of_samples_to_plot', type=str, required=True)
+    parser.add_argument('--saffari_folders', type=str, required=True)
+    parser.add_argument('--online_folders', type=str, required=True)
     parser.add_argument('--out_plot_file', type=str, required=True)
     args = parser.parse_args()
 
@@ -48,21 +48,26 @@ if __name__ == "__main__":
             }
     matplotlib.rcParams.update(params)
 
+    matplotlib.rcParams.update(params)
+
     saffari_folders = glob.glob(args.saffari_folders)
     print saffari_folders
     x_axis, d = load_data(saffari_folders, samples_to_plot,  1, 1)
-    plot_line(x_axis=x_axis, data=d, line_type='-', color='g', label='Saffari et al. (2009)')
+    plot_line(x_axis=x_axis, data=d, line_type='r--h', color='r', label='Saffari et al. (2009)')
 
     online_folders = glob.glob(args.online_folders)
     print online_folders
     x_axis, d = load_data(online_folders, samples_to_plot,  1, 1)
-    plot_line(x_axis=x_axis, data=d, line_type='-', color='b', label='$\\alpha(d)=10\\cdot(1.01^d)$')
+    plot_line(x_axis=x_axis, data=d, line_type='g-.D', color='g', label='Online')
 
     plt.title('Forest Accuracy')
-    plt.xlabel('Number of sampled pixels (1000 per image)')
+    plt.xlabel('Data Size')
     plt.ylabel('Accuracy')
 
     plt.xscale('log')
+    print samples_to_plot[0]
+    print samples_to_plot[-1]
+    plt.xlim([samples_to_plot[0][1], samples_to_plot[-1][1]])
     plt.legend(loc = (0.38, 0.05))
     plt.savefig(args.out_plot_file)
     plt.show()

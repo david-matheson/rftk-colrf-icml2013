@@ -2,7 +2,7 @@
 '''
 @author: David Matheson
 
-Online training of kinect random forests
+Safari online training of kinect random forests
 '''
 
 import numpy as np
