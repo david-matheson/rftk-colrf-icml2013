@@ -2,7 +2,7 @@
 
 RESULTS_FOLDER="results"
 CONFIG_MODULE="experiment_config.compare_to_offline"
-FIGURE_FILE="figures/compare_to_offline.png"
+FIGURE_FILE="figures/compare_to_offline.pdf"
 
 echo "Training consistent online forest..."
 python train_online.py  -c "$CONFIG_MODULE" -o "$RESULTS_FOLDER/usps_online-{}.pkl"
