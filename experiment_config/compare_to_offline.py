@@ -60,7 +60,7 @@ class OnlineConfig(DataConfig):
         self.number_of_trees = 100
         self.number_of_features = 10
         self.number_of_thresholds = 10
-        self.split_rate = 1.01
+        self.split_rate = 1.00001
         self.number_of_data_to_split_root = 10
         self.number_of_data_to_force_split_root = 10000
         self.use_two_streams = True
