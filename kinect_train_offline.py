@@ -21,8 +21,6 @@ import kinect_utils as kinect_utils
 
 
 class KinectOfflineConfig(object):
-    def __init__(self):
-        self.number_of_pixels_per_image = 1000
 
     def configure_offline_learner(self, number_of_trees):
         number_of_features = 2000

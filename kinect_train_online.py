@@ -21,8 +21,6 @@ import kinect_utils as kinect_utils
 
 
 class KinectOnlineConfig(object):
-    def __init__(self):
-        self.number_of_pixels_per_image = 1000
 
     def configure_online_learner(self, number_of_trees, split_rate, number_datapoints_split_root, eval_split_period, max_depth):
         number_of_features = 2000
