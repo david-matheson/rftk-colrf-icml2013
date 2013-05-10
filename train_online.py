@@ -74,12 +74,11 @@ def run_experiment(experiment_config, run_config):
         node_data_collector,
         class_infogain_best_split,
         split_criteria,
-        run_config.number_of_trees,
-        100000)
+        run_config.number_of_trees)
     sampling_config = train.OnlineSamplingParams(False, 1.0)
 
     # Train online forest
-    online_learner = train.OnlineForestLearner(train_config, sampling_config, 100000)
+    online_learner = train.OnlineForestLearner(train_config, sampling_config, 50000)
     online_learner.Train(data, indices)
 
     predict_forest = predict.MatrixForestPredictor(online_learner.GetForest())

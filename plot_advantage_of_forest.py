@@ -46,6 +46,9 @@ if __name__ == "__main__":
             'legend.fontsize': 20,
             'xtick.labelsize' : 15,
             'ytick.labelsize' : 15,
+            'pdf.use14corefonts': True,
+            'pdf.fonttype' : 1,
+            'text.usetex' : True,
             }
     matplotlib.rcParams.update(params)
 

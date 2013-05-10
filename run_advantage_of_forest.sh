@@ -2,7 +2,7 @@
 
 RESULTS_FOLDER="results"
 CONFIG_MODULE="experiment_config.advantage_of_forest"
-FIGURE_FILE="figures/advantage_of_forest.png"
+FIGURE_FILE="figures/advantage_of_forest.pdf"
 
 echo "Running experiment..."
 python train_online.py -c "$CONFIG_MODULE" -o "$RESULTS_FOLDER/mog_online-{}.pkl"
