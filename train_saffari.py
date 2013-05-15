@@ -117,7 +117,7 @@ if __name__ == "__main__":
         return position, forest_measurement, tree_measurement
 
     # beware: these jobs take a lot of memory
-    job_results = Parallel(n_jobs=2, verbose=5)(
+    job_results = Parallel(n_jobs=5, verbose=5)(
         delayed(launch_job)(configuration_domain, position)
         for position in list(iter(configuration_domain)))
 

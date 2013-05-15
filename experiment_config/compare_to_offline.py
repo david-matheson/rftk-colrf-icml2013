@@ -86,14 +86,14 @@ class OfflineConfig(DataConfig):
     def __init__(self):
         DataConfig.__init__(self)
 
-        self.number_of_trees = 100 
+        self.number_of_trees = 100
         self.number_of_features = 10
         self.number_of_thresholds = 10
         self.max_depth = 1000
         self.min_samples_split = 10
-        self.min_samples_leaf = 5 
+        self.min_samples_leaf = 5
         self.use_two_streams = False
-        self.null_probability = 0.0 
-        self.min_impurity_gain = 0.1 
+        self.null_probability = 0.0
+        self.min_impurity_gain = 0.1
         self.use_bootstrap = True
-        self.number_of_jobs = 1 
+        self.number_of_jobs = 4

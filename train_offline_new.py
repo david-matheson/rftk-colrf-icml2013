@@ -23,8 +23,9 @@ def run_experiment(experiment_config, run_config):
                             number_of_trees=run_config.number_of_trees,
                             max_depth=run_config.max_depth,
                             min_node_size=run_config.min_samples_split,
+                            min_child_size=run_config.min_samples_leaf,
+                            min_impurity=run_config.min_impurity_gain,
                             bootstrap=True,
-                            # min_child_size=sklearn_config.min_samples_leaf,
                             number_of_jobs=run_config.number_of_jobs)
     full_forest_data = forest.get_forest()
 
@@ -63,7 +64,7 @@ if __name__ == "__main__":
         forest_measurement = run_experiment(experiment_config, run_config)
         return position, forest_measurement
 
-    job_results = Parallel(n_jobs=4, verbose=5)(
+    job_results = Parallel(n_jobs=5, verbose=5)(
         delayed(launch_job)(configuration_domain, position)
         for position in list(iter(configuration_domain)))
 

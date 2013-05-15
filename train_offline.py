@@ -98,7 +98,7 @@ if __name__ == "__main__":
         forest_measurement = run_experiment(experiment_config, run_config)
         return position, forest_measurement
 
-    job_results = Parallel(n_jobs=4, verbose=5)(
+    job_results = Parallel(n_jobs=5, verbose=5)(
         delayed(launch_job)(configuration_domain, position)
         for position in list(iter(configuration_domain)))
 
