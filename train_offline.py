@@ -17,8 +17,7 @@ def run_experiment(experiment_config, run_config):
         run_config.data_size,
         run_config.number_of_passes_through_data)
 
-    learner = rftk.learn.create_vanilia_classifier()
-    forest = learner.fit(x=X_train, classes=Y_train, 
+    learner = rftk.learn.create_vanilia_classifier(                         
                             number_of_features=run_config.number_of_features, 
                             number_of_trees=run_config.number_of_trees,
                             max_depth=run_config.max_depth,
@@ -27,11 +26,13 @@ def run_experiment(experiment_config, run_config):
                             min_impurity=run_config.min_impurity_gain,
                             bootstrap=True,
                             number_of_jobs=run_config.number_of_jobs)
-    full_forest_data = forest.get_forest()
+    forest = learner.fit(x=X_train, classes=Y_train)
 
     y_probs = forest.predict(x=X_test)
     y_hat = y_probs.argmax(axis=1)
     accuracy = np.mean(Y_test == y_hat)
+
+    full_forest_data = forest.get_forest()
     stats = full_forest_data.GetForestStats()
 
     forest_measurement = experiment_utils.measurements.StatsMeasurement(

@@ -20,8 +20,7 @@ def run_experiment(experiment_config, run_config):
     (x_m,x_dim) = X_train.shape
     y_dim = int(np.max(Y_train) + 1)
 
-    learner = rftk.learn.create_online_two_stream_consistent_classifier()
-    forest = learner.fit(x=X_train, classes=Y_train,
+    learner = rftk.learn.create_online_two_stream_consistent_classifier(
                             number_of_features=run_config.number_of_features,
                             number_of_trees=run_config.number_of_trees,
                             # max_depth=run_config.max_depth, set to 1000 in old version
@@ -32,16 +31,15 @@ def run_experiment(experiment_config, run_config):
                             split_rate_growth=run_config.split_rate,
                             probability_of_impurity_stream=run_config.impurity_probability,
                             # poisson_sample=1, disabled in old version
-                            max_frontier_size=50000,
-                            )
-    full_forest_data = forest.get_forest()
-    full_forest_data.GetForestStats().Print()
+                            max_frontier_size=50000)
+
+    forest = learner.fit(x=X_train, classes=Y_train)
 
     y_probs = forest.predict(x=X_test)
     y_hat = y_probs.argmax(axis=1)
     accuracy = np.mean(Y_test == y_hat)
 
-
+    full_forest_data = forest.get_forest()
     stats = full_forest_data.GetForestStats()
     forest_measurement = experiment_utils.measurements.StatsMeasurement(
         accuracy=accuracy,

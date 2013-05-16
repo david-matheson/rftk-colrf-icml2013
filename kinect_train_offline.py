@@ -38,11 +38,7 @@ if __name__ == "__main__":
     offset_scales = np.array(np.random.uniform(0.8, 1.2, (number_of_datapoints, 2)), dtype=np.float32)
     offset_scales_buffer = rftk.buffers.as_matrix_buffer(offset_scales)
 
-    forest_learner = rftk.learn.create_vanilia_scaled_depth_delta_classifier()
-    predictor = forest_learner.fit(depth_images=depths_buffer, 
-                                  pixel_indices=pixel_indices_buffer, 
-                                  offset_scales=offset_scales_buffer,
-                                  classes=pixel_labels_buffer,
+    forest_learner = rftk.learn.create_vanilia_scaled_depth_delta_classifier(
                                   number_of_trees=args.number_of_trees,
                                   number_of_features=2000,
                                   max_depth=30,
@@ -52,6 +48,11 @@ if __name__ == "__main__":
                                   ux=75, uy=75, vx=75, vy=75,
                                   bootstrap=True,
                                   number_of_jobs=2)
+    
+    predictor = forest_learner.fit(depth_images=depths_buffer, 
+                                  pixel_indices=pixel_indices_buffer, 
+                                  offset_scales=offset_scales_buffer,
+                                  classes=pixel_labels_buffer)
 
     predictions = predictor.predict(depth_images=depths_buffer,pixel_indices=pixel_indices_buffer)
     accurracy = np.mean(rftk.buffers.as_numpy_array(pixel_labels_buffer) == predictions.argmax(axis=1))

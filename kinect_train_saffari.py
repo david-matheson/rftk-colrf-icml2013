@@ -45,7 +45,17 @@ if __name__ == "__main__":
     print "Starting %s" % online_run_folder
 
     # Create learner
-    forest_learner = rftk.learn.create_online_one_stream_depth_delta_classifier()
+    forest_learner = rftk.learn.create_online_one_stream_depth_delta_classifier(                                      
+                                      number_of_trees=args.number_of_trees,
+                                      max_depth=args.max_depth,
+                                      number_of_features=2000,
+                                      number_of_splitpoints=10,
+                                      min_child_size_sum=args.number_datapoints_split_root,
+                                      min_impurity=0.01,
+                                      ux=75, uy=75, vx=75, vy=75,
+                                      poisson_sample=1,
+                                      max_frontier_size=1000000,
+                                      impurity_update_period=args.eval_split_period)
 
     # Randomly offset scales
     number_of_datapoints = pixel_indices_buffer.GetM()
@@ -72,17 +82,7 @@ if __name__ == "__main__":
         predictor = forest_learner.fit(depth_images=depths_buffer, 
                                       pixel_indices=sliced_pixel_indices_buffer, 
                                       offset_scales=sliced_offset_scales_buffer,
-                                      classes=sliced_pixel_labels_buffer,
-                                      number_of_trees=args.number_of_trees,
-                                      max_depth=args.max_depth,
-                                      number_of_features=2000,
-                                      number_of_splitpoints=10,
-                                      min_child_size_sum=args.number_datapoints_split_root,
-                                      min_impurity=0.01,
-                                      ux=75, uy=75, vx=75, vy=75,
-                                      poisson_sample=1,
-                                      max_frontier_size=1000000,
-                                      impurity_update_period=args.eval_split_period)
+                                      classes=sliced_pixel_labels_buffer)
 
         #pickle forest and data used for training
         forest_pickle_filename = "%s/forest-%d-%d.pkl" % (online_run_folder, pass_id, end_index)

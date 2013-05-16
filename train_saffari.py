@@ -20,24 +20,22 @@ def run_experiment(experiment_config, run_config):
     (x_m,x_dim) = X_train.shape
     y_dim = int(np.max(Y_train) + 1)
 
-    learner = rftk.learn.create_online_one_stream_classifier()
-    forest = learner.fit(x=X_train, classes=Y_train,
-                            number_of_features=run_config.number_of_features,
+    learner = rftk.learn.create_online_one_stream_classifier(
                             number_of_trees=run_config.number_of_trees,
+                            number_of_features=run_config.number_of_features,
                             max_depth=run_config.max_depth,
                             min_child_size_sum=run_config.min_samples_split,
                             number_of_splitpoints=run_config.number_of_thresholds,
                             min_impurity=run_config.min_impurity_gain,
-                            poisson_sample=1
-                            )
-    full_forest_data = forest.get_forest()
-    full_forest_data.GetForestStats().Print()
+                            poisson_sample=1)
+
+    forest = learner.fit(x=X_train, classes=Y_train)
 
     y_probs = forest.predict(x=X_test)
     y_hat = y_probs.argmax(axis=1)
     accuracy = np.mean(Y_test == y_hat)
 
-
+    full_forest_data = forest.get_forest()
     stats = full_forest_data.GetForestStats()
     forest_measurement = experiment_utils.measurements.StatsMeasurement(
         accuracy=accuracy,
