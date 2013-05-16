@@ -5,17 +5,13 @@ import itertools
 import random as random
 import cPickle as pickle
 
-import rftk.buffers as buffers
-import rftk.forest_data  as forest_data
-import rftk.feature_extractors as feature_extractors
-import rftk.best_split as best_splits
-import rftk.predict as predict
-import rftk.train as train
+import rftk
 
 import experiment_utils.measurements
 import experiment_utils.management
 
 from joblib import Parallel, delayed
+
 
 def run_experiment(experiment_config, run_config):
     X_train, Y_train, X_test, Y_test = experiment_config.load_data(
@@ -24,68 +20,27 @@ def run_experiment(experiment_config, run_config):
     (x_m,x_dim) = X_train.shape
     y_dim = int(np.max(Y_train) + 1)
 
-    data = buffers.BufferCollection()
-    data.AddFloat32MatrixBuffer(buffers.X_FLOAT_DATA, buffers.as_matrix_buffer(X_train))
-    data.AddInt32VectorBuffer(buffers.CLASS_LABELS, buffers.Int32Vector(Y_train))
-    indices = buffers.Int32Vector( np.array(np.arange(x_m), dtype=np.int32) )
+    learner = rftk.learn.create_online_two_stream_consistent_classifier(
+                            number_of_features=run_config.number_of_features,
+                            number_of_trees=run_config.number_of_trees,
+                            # max_depth=run_config.max_depth, set to 1000 in old version
+                            number_of_splitpoints=run_config.number_of_thresholds,
+                            min_impurity=run_config.min_impurity_gain,
+                            number_of_data_to_split_root=run_config.number_of_data_to_split_root,
+                            number_of_data_to_force_split_root=run_config.number_of_data_to_force_split_root,
+                            split_rate_growth=run_config.split_rate,
+                            probability_of_impurity_stream=run_config.impurity_probability,
+                            # poisson_sample=1, disabled in old version
+                            max_frontier_size=50000)
 
-    feature_extractor = feature_extractors.Float32AxisAlignedFeatureExtractor(
-        run_config.number_of_features,
-        x_dim,
-        True) # choose number of features from poisson?
-    
-    if not run_config.use_two_streams:
-        node_data_collector = train.RandomThresholdHistogramDataCollectorFactory(
-            y_dim,
-            run_config.number_of_thresholds,
-            run_config.null_probability)
-        
-        class_infogain_best_split = best_splits.ClassInfoGainHistogramsBestSplit(
-            y_dim,
-            buffers.HISTOGRAM_LEFT,
-            buffers.HISTOGRAM_RIGHT,
-            buffers.HISTOGRAM_LEFT,
-            buffers.HISTOGRAM_RIGHT)
-    else:
-        node_data_collector = train.TwoStreamRandomThresholdHistogramDataCollectorFactory(
-            y_dim,
-            run_config.number_of_thresholds,
-            run_config.null_probability,
-            run_config.impurity_probability)
-                
-        class_infogain_best_split = best_splits.ClassInfoGainHistogramsBestSplit(
-            y_dim,
-            buffers.IMPURITY_HISTOGRAM_LEFT,
-            buffers.IMPURITY_HISTOGRAM_RIGHT,
-            buffers.YS_HISTOGRAM_LEFT,
-            buffers.YS_HISTOGRAM_RIGHT)
+    forest = learner.fit(x=X_train, classes=Y_train)
 
-    max_tree_depth = 1000
-    split_criteria = train.OnlineConsistentSplitCriteria(
-        run_config.split_rate,
-        run_config.min_impurity_gain,
-        run_config.number_of_data_to_split_root,
-        run_config.number_of_data_to_force_split_root,
-        max_tree_depth)
-
-    extractor_list = [feature_extractor]
-    train_config = train.TrainConfigParams(
-        extractor_list,
-        node_data_collector,
-        class_infogain_best_split,
-        split_criteria,
-        run_config.number_of_trees)
-    sampling_config = train.OnlineSamplingParams(False, 1.0)
-
-    # Train online forest
-    online_learner = train.OnlineForestLearner(train_config, sampling_config, 50000)
-    online_learner.Train(data, indices)
-
-    predict_forest = predict.MatrixForestPredictor(online_learner.GetForest())
-    y_probs = predict_forest.predict_proba(X_test)
+    y_probs = forest.predict(x=X_test)
     y_hat = y_probs.argmax(axis=1)
     accuracy = np.mean(Y_test == y_hat)
-    stats = online_learner.GetForest().GetForestStats()
+
+    full_forest_data = forest.get_forest()
+    stats = full_forest_data.GetForestStats()
     forest_measurement = experiment_utils.measurements.StatsMeasurement(
         accuracy=accuracy,
         min_depth=stats.mMinDepth,
@@ -100,10 +55,9 @@ def run_experiment(experiment_config, run_config):
         return forest_measurement, None
 
     tree_measurements = []
-    online_forest_data = online_learner.GetForest()
-    for tree_id in range(online_forest_data.GetNumberOfTrees()):
-        single_tree_forest_data = forest_data.Forest([online_forest_data.GetTree(tree_id)])
-        single_tree_forest_predictor = predict.MatrixForestPredictor(single_tree_forest_data)
+    for tree_id in range(full_forest_data.GetNumberOfTrees()):
+        single_tree_forest_data = rftk.forest_data.Forest([full_forest_data.GetTree(tree_id)])
+        single_tree_forest_predictor = rftk.predict.MatrixForestPredictor(single_tree_forest_data)
         y_probs = single_tree_forest_predictor.predict_proba(X_test)
         accuracy = np.mean(Y_test == y_probs.argmax(axis=1))
         tree_measurement = experiment_utils.measurements.AccuracyMeasurement(
@@ -131,7 +85,8 @@ if __name__ == "__main__":
         forest_measurement, tree_measurement = run_experiment(experiment_config, run_config)
         return position, forest_measurement, tree_measurement
 
-    job_results = Parallel(n_jobs=4, verbose=5)(
+    # beware: these jobs take a lot of memory
+    job_results = Parallel(n_jobs=5, verbose=5)(
         delayed(launch_job)(configuration_domain, position)
         for position in list(iter(configuration_domain)))
 

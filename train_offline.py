@@ -4,12 +4,7 @@ import itertools
 import cPickle as pickle
 from datetime import datetime
 
-import rftk.buffers as buffers
-import rftk.forest_data as forest_data
-import rftk.feature_extractors as feature_extractors
-import rftk.best_split as best_splits
-import rftk.predict as predict
-import rftk.train as train
+import rftk
 
 import experiment_utils.measurements
 import experiment_utils.management
@@ -21,51 +16,23 @@ def run_experiment(experiment_config, run_config):
     X_train, Y_train, X_test, Y_test = experiment_config.load_data(
         run_config.data_size,
         run_config.number_of_passes_through_data)
-    (x_m,x_dim) = X_train.shape
-    y_dim = int(np.max(Y_train) + 1)
 
-    data = buffers.BufferCollection()
-    data.AddFloat32MatrixBuffer(buffers.X_FLOAT_DATA, buffers.as_matrix_buffer(X_train))
-    data.AddInt32VectorBuffer(buffers.CLASS_LABELS, buffers.Int32Vector(Y_train))
-    indices = buffers.Int32Vector( np.array(np.arange(x_m), dtype=np.int32) )
+    learner = rftk.learn.create_vanilia_classifier(                         
+                            number_of_features=run_config.number_of_features, 
+                            number_of_trees=run_config.number_of_trees,
+                            max_depth=run_config.max_depth,
+                            min_node_size=run_config.min_samples_split,
+                            min_child_size=run_config.min_samples_leaf,
+                            min_impurity=run_config.min_impurity_gain,
+                            bootstrap=True,
+                            number_of_jobs=run_config.number_of_jobs)
+    forest = learner.fit(x=X_train, classes=Y_train)
 
-    feature_extractor = feature_extractors.Float32AxisAlignedFeatureExtractor(
-        run_config.number_of_features,
-        x_dim,
-        False) # choose number of features from poisson?
-    
-    node_data_collector = train.AllNodeDataCollectorFactory()
-    class_infogain_best_split = best_splits.ClassInfoGainAllThresholdsBestSplit(
-        1.0, 1, y_dim)
-
-    split_criteria = train.OfflineSplitCriteria(
-        run_config.max_depth,
-        run_config.min_impurity_gain,
-        run_config.min_samples_split,
-        run_config.min_samples_leaf)
-    
-    extractor_list = [feature_extractor]
-    train_config = train.TrainConfigParams(
-        extractor_list,
-        node_data_collector,
-        class_infogain_best_split,
-        split_criteria,
-        run_config.number_of_trees,
-        100000)
-    sampling_config = train.OfflineSamplingParams(x_m, run_config.use_bootstrap)
-
-    depth_first_learner = train.DepthFirstParallelForestLearner(train_config)
-    full_forest_data = depth_first_learner.Train(
-        data,
-        indices,
-        sampling_config,
-        run_config.number_of_jobs)
-    
-    forest = predict.MatrixForestPredictor(full_forest_data)
-
-    y_probs = forest.predict_proba(X_test)
+    y_probs = forest.predict(x=X_test)
     y_hat = y_probs.argmax(axis=1)
     accuracy = np.mean(Y_test == y_hat)
+
+    full_forest_data = forest.get_forest()
     stats = full_forest_data.GetForestStats()
 
     forest_measurement = experiment_utils.measurements.StatsMeasurement(
@@ -98,7 +65,7 @@ if __name__ == "__main__":
         forest_measurement = run_experiment(experiment_config, run_config)
         return position, forest_measurement
 
-    job_results = Parallel(n_jobs=4, verbose=5)(
+    job_results = Parallel(n_jobs=5, verbose=5)(
         delayed(launch_job)(configuration_domain, position)
         for position in list(iter(configuration_domain)))
 
