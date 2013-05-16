@@ -5,12 +5,7 @@ import itertools
 import random as random
 import cPickle as pickle
 
-import rftk.buffers as buffers
-import rftk.forest_data as forest_data
-import rftk.feature_extractors as feature_extractors
-import rftk.best_split as best_splits
-import rftk.predict as predict
-import rftk.train as train
+import rftk
 
 import experiment_utils.measurements
 import experiment_utils.management
@@ -25,52 +20,25 @@ def run_experiment(experiment_config, run_config):
     (x_m,x_dim) = X_train.shape
     y_dim = int(np.max(Y_train) + 1)
 
-    data = buffers.BufferCollection()
-    data.AddFloat32MatrixBuffer(buffers.X_FLOAT_DATA, buffers.as_matrix_buffer(X_train))
-    data.AddInt32VectorBuffer(buffers.CLASS_LABELS, buffers.Int32Vector(Y_train))
-    indices = buffers.Int32Vector( np.array(np.arange(x_m), dtype=np.int32) )
+    learner = rftk.learn.create_online_one_stream_classifier()
+    forest = learner.fit(x=X_train, classes=Y_train,
+                            number_of_features=run_config.number_of_features,
+                            number_of_trees=run_config.number_of_trees,
+                            max_depth=run_config.max_depth,
+                            min_child_size_sum=run_config.min_samples_split,
+                            number_of_splitpoints=run_config.number_of_thresholds,
+                            min_impurity=run_config.min_impurity_gain,
+                            poisson_sample=1
+                            )
+    full_forest_data = forest.get_forest()
+    full_forest_data.GetForestStats().Print()
 
-    feature_extractor = feature_extractors.Float32AxisAlignedFeatureExtractor(
-        run_config.number_of_features,
-        x_dim,
-        False) # choose number of features from poisson?
-    
-    node_data_collector = train.RandomThresholdHistogramDataCollectorFactory(
-        y_dim,
-        run_config.number_of_thresholds,
-        run_config.null_probability)
-    
-    class_infogain_best_split = best_splits.ClassInfoGainHistogramsBestSplit(
-        y_dim,
-        buffers.HISTOGRAM_LEFT,
-        buffers.HISTOGRAM_RIGHT,
-        buffers.HISTOGRAM_LEFT,
-        buffers.HISTOGRAM_RIGHT)
-    
-    split_criteria = train.OnlineAlphaBetaSplitCriteria(
-        run_config.max_depth,
-        run_config.min_impurity_gain,
-        run_config.min_samples_split)
-    
-    extractor_list = [feature_extractor]
-    train_config = train.TrainConfigParams(
-        extractor_list,
-        node_data_collector,
-        class_infogain_best_split,
-        split_criteria,
-        run_config.number_of_trees,
-        100000)
-    sampling_config = train.OnlineSamplingParams(True, 1.0)
-
-    # Train online forest
-    online_learner = train.OnlineForestLearner(train_config, sampling_config, 100000)
-    online_learner.Train(data, indices)
-
-    predict_forest = predict.MatrixForestPredictor(online_learner.GetForest())
-    y_probs = predict_forest.predict_proba(X_test)
+    y_probs = forest.predict(x=X_test)
     y_hat = y_probs.argmax(axis=1)
     accuracy = np.mean(Y_test == y_hat)
-    stats = online_learner.GetForest().GetForestStats()
+
+
+    stats = full_forest_data.GetForestStats()
     forest_measurement = experiment_utils.measurements.StatsMeasurement(
         accuracy=accuracy,
         min_depth=stats.mMinDepth,
@@ -85,10 +53,9 @@ def run_experiment(experiment_config, run_config):
         return forest_measurement, None
 
     tree_measurements = []
-    online_forest_data = online_learner.GetForest()
-    for tree_id in range(online_forest_data.GetNumberOfTrees()):
-        single_tree_forest_data = forest_data.Forest([online_forest_data.GetTree(tree_id)])
-        single_tree_forest_predictor = predict.MatrixForestPredictor(single_tree_forest_data)
+    for tree_id in range(full_forest_data.GetNumberOfTrees()):
+        single_tree_forest_data = rftk.forest_data.Forest([full_forest_data.GetTree(tree_id)])
+        single_tree_forest_predictor = rftk.predict.MatrixForestPredictor(single_tree_forest_data)
         y_probs = single_tree_forest_predictor.predict_proba(X_test)
         accuracy = np.mean(Y_test == y_probs.argmax(axis=1))
         tree_measurement = experiment_utils.measurements.AccuracyMeasurement(
