@@ -6,30 +6,36 @@ ICML 2013 experiments for "Consistency of Online Random Forests" using rftk. To 
 Setup
 --------------
 Clone both projects 
+
     git clone https://github.com/david-matheson/rftk.git
     git clone https://github.com/david-matheson/rftk-colrf-icml2013.git
 
-If you wish to use the exact setup as the paper checkout the colrf-icml2013-camera-ready tag.  
+If you wish to use the exact setup as the paper checkout the colrf-icml2013-camera-ready tag. 
+
     cd /path/to/rftk
     git checkout colrf-icml2013-camera-ready
     cd /path/to/rftk-colrf-icml2013
     git checkout colrf-icml2013-camera-ready
 
 However, we recommend using the latest implementation in the colrf-icml2013 branch.
+
     cd /path/to/rftk
     git checkout colrf-icml2013
     cd /path/to/rftk-colrf-icml2013
     git checkout colrf-icml2013
 
-Build rftk 
+Build rftk
+
     cd /path/to/rftk
     scons
 
 Add rftk to your PYTHONPATH
+
     PYTHONPATH=/path/to/rftk/
     export PYTHONPATH
 
 Download and unzip data
+
     cd /path/to/rftk-colrf-icml2013/source_data
     wget ...usps
     wget ...usps.t
