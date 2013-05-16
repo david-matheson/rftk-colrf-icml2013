@@ -12,59 +12,10 @@ from datetime import datetime
 import argparse
 import os
 
+import rftk
 import rftk.buffers as buffers
-import rftk.feature_extractors as feature_extractors
-import rftk.best_split as best_splits
-import rftk.train as train
 
 import kinect_utils as kinect_utils
-
-
-class KinectOnlineConfig(object):
-
-    def configure_online_learner(self, number_of_trees, split_rate, number_datapoints_split_root, eval_split_period, max_depth):
-        number_of_features = 2000
-        number_of_thresholds = 10
-        y_dim = kinect_utils.number_of_body_parts
-        null_probability = 0
-        impurity_probability = 0.5
-        split_rate = split_rate
-        number_of_data_to_split_root = number_datapoints_split_root
-        number_of_data_to_force_split_root = 4 * number_datapoints_split_root
-        min_impurity_gain = 0.01
-
-        sigma_x = 75
-        sigma_y = 75
-
-        feature_extractor = feature_extractors.DepthScaledDepthDeltaFeatureExtractor(sigma_x, sigma_y, number_of_features, True)
-        node_data_collector = train.TwoStreamRandomThresholdHistogramDataCollectorFactory(y_dim,
-                                                                                            number_of_thresholds,
-                                                                                            null_probability,
-                                                                                            impurity_probability)
-
-        class_infogain_best_split = best_splits.ClassInfoGainHistogramsBestSplit(y_dim,
-                buffers.IMPURITY_HISTOGRAM_LEFT, buffers.IMPURITY_HISTOGRAM_RIGHT,
-                buffers.YS_HISTOGRAM_LEFT, buffers.YS_HISTOGRAM_RIGHT)
-
-        split_criteria = train.OnlineConsistentSplitCriteria(split_rate,
-                                                            min_impurity_gain,
-                                                            number_of_data_to_split_root,
-                                                            number_of_data_to_force_split_root,
-                                                            max_depth)
-
-        max_number_of_node_in_frontier = 1000
-
-        extractor_list = [feature_extractor]
-        train_config = train.TrainConfigParams(extractor_list,
-                                                node_data_collector,
-                                                class_infogain_best_split,
-                                                split_criteria,
-                                                number_of_trees)
-        sampling_config = train.OnlineSamplingParams(False, 1.0, eval_split_period)
-        online_learner = train.OnlineForestLearner(train_config, sampling_config, max_number_of_node_in_frontier)
-        return online_learner
-
-
 
 
 if __name__ == "__main__":
@@ -93,24 +44,15 @@ if __name__ == "__main__":
     if not os.path.exists(online_run_folder):
         os.makedirs(online_run_folder)
 
-    config = KinectOnlineConfig()
-    online_learner = config.configure_online_learner( args.number_of_trees,
-                                                      args.split_rate,
-                                                      args.number_datapoints_split_root,
-                                                      args.eval_split_period,
-                                                      args.max_depth)
     print "Starting %s" % online_run_folder
+
+    # Create learner
+    forest_learner = rftk.learn.create_online_two_stream_consistent_depth_delta_classifier()
 
     # Randomly offset scales
     number_of_datapoints = pixel_indices_buffer.GetM()
     offset_scales = np.array(np.random.uniform(0.8, 1.2, (number_of_datapoints, 2)), dtype=np.float32)
-
-    # Package buffers for learner
-    bufferCollection = buffers.BufferCollection()
-    bufferCollection.AddFloat32Tensor3Buffer(buffers.DEPTH_IMAGES, depths_buffer)
-    bufferCollection.AddFloat32MatrixBuffer(buffers.OFFSET_SCALES, buffers.as_matrix_buffer(offset_scales))
-    bufferCollection.AddInt32MatrixBuffer(buffers.PIXEL_INDICES, pixel_indices_buffer)
-    bufferCollection.AddInt32VectorBuffer(buffers.CLASS_LABELS, pixel_labels_buffer)
+    offset_scales_buffer = rftk.buffers.as_matrix_buffer(offset_scales)
 
     # On the first pass through data learn for each sample counts
     list_of_sample_counts = eval(args.list_of_sample_counts)
@@ -119,15 +61,40 @@ if __name__ == "__main__":
     print clipped_list_of_sample_ranges
     pass_id = 0
     for (start_index, end_index) in clipped_list_of_sample_ranges:
-        datapoint_indices = np.array(np.arange(start_index, end_index), dtype=np.int32)
-        online_learner.Train(bufferCollection, buffers.Int32Vector(datapoint_indices))
+        print start_index
+        print end_index
+
+        # Slice data
+        datapoint_indices = buffers.as_vector_buffer(np.array(np.arange(start_index, end_index), dtype=np.int32))
+        sliced_pixel_indices_buffer = pixel_indices_buffer.Slice(datapoint_indices)
+        sliced_offset_scales_buffer = offset_scales_buffer.Slice(datapoint_indices)
+        sliced_pixel_labels_buffer = pixel_labels_buffer.Slice(datapoint_indices)
+
+        # online_learner.Train(bufferCollection, buffers.Int32Vector(datapoint_indices))
+        predictor = forest_learner.fit(depth_images=depths_buffer, 
+                                      pixel_indices=sliced_pixel_indices_buffer, 
+                                      offset_scales=sliced_offset_scales_buffer,
+                                      classes=sliced_pixel_labels_buffer,
+                                      number_of_trees=args.number_of_trees,
+                                      max_depth=args.max_depth,
+                                      number_of_features=2000,
+                                      number_of_splitpoints=10,
+                                      min_impurity=0.01,
+                                      number_of_data_to_split_root=args.number_datapoints_split_root,
+                                      number_of_data_to_force_split_root=args.number_datapoints_split_root*4,
+                                      split_rate_growth=args.split_rate,
+                                      probability_of_impurity_stream=0.5,
+                                      ux=75, uy=75, vx=75, vy=75,
+                                      # poisson_sample=1,
+                                      max_frontier_size=1000,
+                                      impurity_update_period=args.eval_split_period)
 
         #pickle forest and data used for training
         forest_pickle_filename = "%s/forest-%d-%d.pkl" % (online_run_folder, pass_id, end_index)
-        pickle.dump(online_learner.GetForest(), gzip.open(forest_pickle_filename, 'wb'))
+        pickle.dump(predictor.get_forest(), gzip.open(forest_pickle_filename, 'wb'))
 
         # Print forest stats
-        forestStats = online_learner.GetForest().GetForestStats()
+        forestStats = predictor.get_forest().GetForestStats()
         forestStats.Print()
 
     # For the rest of the passes use all of the data
@@ -143,22 +110,17 @@ if __name__ == "__main__":
         # Randomly offset scales
         number_of_datapoints = pixel_indices_buffer.GetM()
         offset_scales = np.array(np.random.uniform(0.8, 1.2, (number_of_datapoints, 2)), dtype=np.float32)
+        offset_scales_buffer = buffers.as_matrix_buffer(offset_scales)
 
-        # Package buffers for learner
-        bufferCollection = buffers.BufferCollection()
-        bufferCollection.AddFloat32Tensor3Buffer(buffers.DEPTH_IMAGES, depths_buffer)
-        bufferCollection.AddFloat32MatrixBuffer(buffers.OFFSET_SCALES, buffers.as_matrix_buffer(offset_scales))
-        bufferCollection.AddInt32MatrixBuffer(buffers.PIXEL_INDICES, pixel_indices_buffer)
-        bufferCollection.AddInt32VectorBuffer(buffers.CLASS_LABELS, pixel_labels_buffer)
-
-        datapoint_indices = np.array(np.arange(0, end_index), dtype=np.int32)
-        online_learner.Train(bufferCollection, buffers.Int32Vector(datapoint_indices))
+        predictor = forest_learner.fit(depth_images=depths_buffer, 
+                                      pixel_indices=pixel_indices_buffer,
+                                      offset_scales=offset_scales_buffer,
+                                      classes=pixel_labels_buffer)
 
         #pickle forest and data used for training
         forest_pickle_filename = "%s/forest-%d-%d.pkl" % (online_run_folder, pass_id, end_index)
-        pickle.dump(online_learner.GetForest(), gzip.open(forest_pickle_filename, 'wb'))
+        pickle.dump(predictor.get_forest(), gzip.open(forest_pickle_filename, 'wb'))
 
         # Print forest stats
-        forestStats = online_learner.GetForest().GetForestStats()
+        forestStats = predictor.get_forest().GetForestStats()
         forestStats.Print()
-

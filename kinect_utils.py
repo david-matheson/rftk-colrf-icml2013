@@ -6,6 +6,9 @@ import itertools
 
 import rftk.buffers as buffers
 import rftk.predict as predict
+import rftk.classification as classification
+import rftk.pipeline as pipeline
+import rftk.image_features as image_features
 
 #############################################################################
 #
@@ -269,37 +272,59 @@ def load_and_sample(pose_path, list_of_poses, number_of_pixels_per_image):
 #############################################################################
 
 def classify_pixels(depth, forest):
-    buffer_collection = buffers.BufferCollection()
     assert(depth.ndim == 2)
-    m,n = depth.shape
-    pixel_indices = np.array( list(itertools.product( np.zeros(1), range(m), range(n) )), dtype=np.int32 )
-    buffer_collection.AddInt32MatrixBuffer(buffers.PIXEL_INDICES, buffers.as_matrix_buffer(pixel_indices))
-    depth_buffer = buffers.as_tensor_buffer(depth)
-    buffer_collection.AddFloat32Tensor3Buffer(buffers.DEPTH_IMAGES, depth_buffer)
 
+    # setup test data
+    pixel_indices = np.array( list(itertools.product( np.zeros(1), range(m), range(n) )), dtype=np.int32 )
+    buffer_collection = buffers.BufferCollection()
+    buffer_collection.AddInt32MatrixBuffer(buffers.PIXEL_INDICES, buffers.as_matrix_buffer(pixel_indices))
+    buffer_collection.AddFloat32Tensor3Buffer(buffers.DEPTH_IMAGES, buffers.as_tensor_buffer(depth))
+
+    # setup predictor
+    all_samples_step = pipeline.AllSamplesStep_i32f32i32(buffers.PIXEL_INDICES)
+    depth_delta_feature = image_features.ScaledDepthDeltaFeature_f32i32(all_samples_step.IndicesBufferId,
+                                                                        buffers.PIXEL_INDICES,
+                                                                        buffers.DEPTH_IMAGES)
+    combiner = classification.ClassProbabilityCombiner_f32(number_of_body_parts)
+    forest_predictor = predict.ScaledDepthDeltaClassificationPredictin_f32i32(forest, depth_delta_feature, combiner, all_samples_step)
+
+    # predict
     yprobs_buffer = buffers.Float32MatrixBuffer()
-    forest_predictor = predict.ForestPredictor(forest)
-    forest_predictor.PredictYs(buffer_collection, m*n, yprobs_buffer)
+    forest_predictor.PredictYs(buffer_collection, yprobs_buffer)
+
+    # convert to image space 
     yprobs = buffers.as_numpy_array(yprobs_buffer)
     (_, ydim) = yprobs.shape
     img_yprobs = yprobs.reshape((m,n,ydim))
     img_yhat = np.argmax(img_yprobs, axis=2)
     return img_yhat, img_yprobs.max(axis=2)
 
+
 def classify_body_pixels(depth, ground_labels, forest):
-    buffer_collection = buffers.BufferCollection()
     assert(depth.ndim == 2)
-    m,n = depth.shape
+
+    # setup test data
     pixel_indices = to_indices(0, np.where(ground_labels != background))
-    (number_of_non_background_pixels,_) = pixel_indices.shape
+    buffer_collection = buffers.BufferCollection()
     buffer_collection.AddInt32MatrixBuffer(buffers.PIXEL_INDICES, buffers.as_matrix_buffer(pixel_indices))
     buffer_collection.AddFloat32Tensor3Buffer(buffers.DEPTH_IMAGES, buffers.as_tensor_buffer(depth))
 
-    forest_predictor = predict.ForestPredictor(forest)
+    # setup predictor
+    all_samples_step = pipeline.AllSamplesStep_i32f32i32(buffers.PIXEL_INDICES)
+    depth_delta_feature = image_features.ScaledDepthDeltaFeature_f32i32(all_samples_step.IndicesBufferId,
+                                                                        buffers.PIXEL_INDICES,
+                                                                        buffers.DEPTH_IMAGES)
+    combiner = classification.ClassProbabilityCombiner_f32(number_of_body_parts)
+    forest_predictor = predict.ScaledDepthDeltaClassificationPredictin_f32i32(forest, depth_delta_feature, combiner, all_samples_step)
+
+    # predict
     yprobs_buffer = buffers.Float32MatrixBuffer()
-    forest_predictor.PredictYs(buffer_collection, number_of_non_background_pixels, yprobs_buffer)
+    forest_predictor.PredictYs(buffer_collection, yprobs_buffer)
+
+    # convert to image space 
     yprobs = buffers.as_numpy_array(yprobs_buffer)
     (_, ydim) = yprobs.shape
+    m,n = depth.shape
     img_yprobs = np.zeros((m,n), dtype=np.float32)
     img_yprobs[ground_labels != background].shape
     yprobs.max(axis=1).shape
