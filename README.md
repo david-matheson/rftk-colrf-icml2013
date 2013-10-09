@@ -37,10 +37,10 @@ Add rftk to your PYTHONPATH
 Download and unzip data
 
     cd /path/to/rftk-colrf-icml2013/source_data
-    wget ...usps
-    wget ...usps.t
-    wget ...kinect_train_2000.np
-    wget ...kinect_test.np
+    wget http://www.cs.ubc.ca/~mdenil/projects/random_forests/usps_mog.tar.bz2
+    tar -jxvf usps_mog.tar.bz2
+    wget http://www.cs.ubc.ca/~mdenil/projects/random_forests/kinect_data.zip
+    unzip kinect_data.zip
 
 Running experiments
 --------------
