@@ -13,16 +13,16 @@ Clone both projects
 If you wish to use the exact setup as the paper checkout the colrf-icml2013-camera-ready tag. 
 
     cd /path/to/rftk
-    git checkout colrf-icml2013-camera-ready
+    git checkout -b colrf-icml2013-camera-ready origin/colrf-icml2013-camera-ready
     cd /path/to/rftk-colrf-icml2013
-    git checkout colrf-icml2013-camera-ready
+    git checkout -b colrf-icml2013-camera-ready origin/colrf-icml2013-camera-ready
 
 However, we recommend using the latest implementation in the colrf-icml2013 branch.
 
     cd /path/to/rftk
-    git checkout colrf-icml2013
+    git checkout -b colrf-icml2013 origin/colrf-icml2013
     cd /path/to/rftk-colrf-icml2013
-    git checkout colrf-icml2013
+    git checkout -b colrf-icml2013 origin/colrf-icml2013
 
 Build rftk
 
